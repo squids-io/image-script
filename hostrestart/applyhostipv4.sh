@@ -10,13 +10,13 @@
 # - use hostname as k8s node name, `kubectl annotate node {node_name} vpc.external.ip={host_public_ip} --overwrite`
 
 # args
-# - nic
+# - master
 # - node
 
-#if [ "$1" == "" ]; then
-#    echo "err: arg1 must 'nic' or 'node'"
-#    exit 0
-#fi
+if [ "$1" == "" ]; then
+    echo "err: arg1 must 'master' or 'node'"
+    exit 0
+fi
 
 # 获取主机 IPv4
 # shellcheck disable=SC2006
@@ -24,7 +24,9 @@ AWSEC2_IMDSV2_TOKEN=`curl -s -X PUT "http://169.254.169.254/latest/api/token" -H
 # shellcheck disable=SC2006
 AWSEC2_HOST_PUBLIC_IPv4=`curl -s -H "X-aws-ec2-metadata-token: $AWSEC2_IMDSV2_TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4`
 
-#if [ "$1" == "nic" ]; then
+
+# 仅 k8s node 节点才使用公网 IP 启动 kubelet
+if [ "$1" == "node" ]; then
 # 用主机公网 IP 新建一个网卡
 NCI_BRIDGE_NAME="brs"
 ip link add name ${NCI_BRIDGE_NAME} type bridge
@@ -61,7 +63,7 @@ systemctl daemon-reload
 systemctl restart kubelet
 
 echo 'success apply to nic'
-#fi
+fi
 
 
 #if [ "$1" == "node" ]; then
