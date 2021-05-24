@@ -9,6 +9,8 @@
 #                  2. if there is no ebs volume, use local ssd
 #* *******************************************************
 
+# mkdir "squids-data"
+sudo mkdir -p /squids-data
 
 # find all devices
 DEVICES=($(sudo nvme list |grep -v 'nvme0n1' |grep 'Amazon Elastic Block Store' |awk '{print $1}'))
@@ -50,7 +52,6 @@ then
   sudo vgcreate squids-group ${NEWS[*]}
   sudo lvcreate -l 100%FREE -y -n squids-data squids-group
   sudo mkfs.xfs /dev/squids-group/squids-data
-  sudo mkdir -p /squids-data
   sudo sed -i '$a /dev/squids-group/squids-data   /squids-data         xfs   defaults,defaults         0 0' /etc/fstab
   sudo mount -a
 else
