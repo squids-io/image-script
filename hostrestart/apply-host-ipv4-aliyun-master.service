@@ -6,7 +6,7 @@ After=network-online.target kubelet.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/etc/squids/applyhostipv4.sh master
+ExecStart=/etc/squids/applyhostipv4.sh aliyun master
 ExecStop=echo 'stop'
 
 [Install]
