@@ -5,28 +5,52 @@
 # step:
 # - get host public IPv4
 #   - aws EC2 [https://docs.aws.amazon.com/zh_cn/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html]
+#   - aliyun ECS [https://help.aliyun.com/document_detail/214777.html?spm=a2c4g.11186623.6.743.1cea639eaI7zwz]
 # - create NIC use host public IPv4
 # - apply host public IPv4 to kubelet start arg --node-ip
 # - use hostname as k8s node name, `kubectl annotate node {node_name} vpc.external.ip={host_public_ip} --overwrite`
 
 # args
-# - master
-# - node
+# 1. cloud provider
+#   - aws
+#   - aliyun
+# 2. node type
+#   - master
+#   - node
 
 if [ "$1" == "" ]; then
-    echo "err: arg1 must 'master' or 'node'"
+    echo "err: arg1 means cloud provider, available 'aws', 'aliyun' now"
+    exit 0
+fi
+
+if [ "$2" == "" ]; then
+    echo "err: arg1 means node type, available 'master', 'node'"
     exit 0
 fi
 
 # 获取主机 IPv4
-# shellcheck disable=SC2006
-AWSEC2_IMDSV2_TOKEN=`curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"`
-# shellcheck disable=SC2006
-AWSEC2_HOST_PUBLIC_IPv4=`curl -s -H "X-aws-ec2-metadata-token: $AWSEC2_IMDSV2_TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4`
+if [ "$1" == "aws" ]; then
+    # shellcheck disable=SC2006
+    AWSEC2_IMDSV2_TOKEN=`curl -s --connect-timeout 1 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"`
+    # shellcheck disable=SC2006
+    HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 -H "X-aws-ec2-metadata-token: $AWSEC2_IMDSV2_TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4`
+elif [ "$1" == "aliyun" ]; then
+    # shellcheck disable=SC2006
+    ALIYUNECS_METADATA_TOKEN=`curl -s --connect-timeout 1 -X PUT "http://100.100.100.200/latest/api/token" -H "X-aliyun-ecs-metadata-token-ttl-seconds: 21600"`
+    # shellcheck disable=SC2006
+    HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 -H "X-aliyun-ecs-metadata-token: $ALIYUNECS_METADATA_TOKEN"  http://100.100.100.200/latest/meta-data/eipv4`
+fi
 
+if [ "$HOST_PUBLIC_IPv4" == "" ]; then
+    echo "err: get host public IPv4 failed"
+    exit 1
+fi
+
+# shellcheck disable=SC2027
+echo "info: HOST_PUBLIC_IPv4: ""$HOST_PUBLIC_IPv4"
 
 # 仅 k8s node 节点才使用公网 IP 启动 kubelet
-if [ "$1" == "node" ]; then
+if [ "$2" == "node" ]; then
 # 用主机公网 IP 新建一个网卡
 NCI_BRIDGE_NAME="brs"
 ip link add name ${NCI_BRIDGE_NAME} type bridge
@@ -37,7 +61,7 @@ network:
     ethernets:
         ${NCI_BRIDGE_NAME}:
          addresses:
-             - ${AWSEC2_HOST_PUBLIC_IPv4}/24
+             - ${HOST_PUBLIC_IPv4}/24
 EOF
 netplan apply
 
@@ -47,16 +71,16 @@ KUBEADM_CONF="/etc/systemd/system/kubelet.service.d/10-kubeadm.conf"
 
 #if [ `grep -c "Environment=\"KUBELET_EXTRA_ARGS" ${KUBEADM_CONF}` -ne '0' ] && [ `grep -c "\-\-node\-ip" ${KUBEADM_CONF}` -ne '0' ]
 #then
-#  sed -r 's/(\b[0-9]{1,3}\.){3}[0-9]{1,3}\b'/"${AWSEC2_HOST_PUBLIC_IPv4}"/ -i ${KUBEADM_CONF}
+#  sed -r 's/(\b[0-9]{1,3}\.){3}[0-9]{1,3}\b'/"${HOST_PUBLIC_IPv4}"/ -i ${KUBEADM_CONF}
 #else
-#  sed -i '/\[Service\]/aEnvironment="KUBELET_EXTRA_ARGS=--container-runtime=remote --node-ip='"${AWSEC2_HOST_PUBLIC_IPv4}"' --runtime-request-timeout=15m --container-runtime-endpoint=unix:///run/containerd/containerd.sock"' ${KUBEADM_CONF}
+#  sed -i '/\[Service\]/aEnvironment="KUBELET_EXTRA_ARGS=--container-runtime=remote --node-ip='"${HOST_PUBLIC_IPv4}"' --runtime-request-timeout=15m --container-runtime-endpoint=unix:///run/containerd/containerd.sock"' ${KUBEADM_CONF}
 #fi
 
 # delete old KUBELET_EXTRA_ARGS
 sed -e '/Environment=\"KUBELET_EXTRA_ARGS/d' -i ${KUBEADM_CONF}
 # insert
 # todo 确保该处的配置参数跟其他地方的一致
-sed -i '/\[Service\]/aEnvironment="KUBELET_EXTRA_ARGS=--container-runtime=remote --node-ip='"${AWSEC2_HOST_PUBLIC_IPv4}"' --runtime-request-timeout=15m --container-runtime-endpoint=unix:///run/containerd/containerd.sock"' ${KUBEADM_CONF}
+sed -i '/\[Service\]/aEnvironment="KUBELET_EXTRA_ARGS=--container-runtime=remote --node-ip='"${HOST_PUBLIC_IPv4}"' --runtime-request-timeout=15m --container-runtime-endpoint=unix:///run/containerd/containerd.sock"' ${KUBEADM_CONF}
 
 # 重启 kubelet
 systemctl daemon-reload
@@ -71,6 +95,6 @@ fi
 # 必须在 kubeadm join 后，不然没 kubelet.conf
 # shellcheck disable=SC2006
 HOST_NAME=`hostname`
-kubectl annotate node "${HOST_NAME}" vpc.external.ip="${AWSEC2_HOST_PUBLIC_IPv4}" --kubeconfig=/etc/kubernetes/kubelet.conf --overwrite
-echo 'success apply to node'
+kubectl annotate node "${HOST_NAME}" vpc.external.ip="${HOST_PUBLIC_IPv4}" --kubeconfig=/etc/kubernetes/kubelet.conf --overwrite
+echo 'annotate node vpc.external.ip finish'
 #fi
