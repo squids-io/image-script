@@ -80,7 +80,7 @@ KUBEADM_CONF="/etc/systemd/system/kubelet.service.d/10-kubeadm.conf"
 sed -e '/Environment=\"KUBELET_EXTRA_ARGS/d' -i ${KUBEADM_CONF}
 # insert
 # todo 确保该处的配置参数跟其他地方的一致
-sed -i '/\[Service\]/aEnvironment="KUBELET_EXTRA_ARGS=--container-runtime=remote --node-ip='"${HOST_PUBLIC_IPv4}"' --runtime-request-timeout=15m --container-runtime-endpoint=unix:///run/containerd/containerd.sock"' ${KUBEADM_CONF}
+sed -i '/\[Service\]/aEnvironment="KUBELET_EXTRA_ARGS=--container-runtime=remote --node-ip='"${HOST_PUBLIC_IPv4}"' --runtime-request-timeout=15m --cgroup-driver=systemd --container-runtime-endpoint=unix:///run/containerd/containerd.sock"' ${KUBEADM_CONF}
 
 # 重启 kubelet
 systemctl daemon-reload
