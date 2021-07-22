@@ -96,6 +96,7 @@ echo 'k8s api-server running'
 
 if [ "$2" == "master" ]; then
   kubectl label -ndefault service kubernetes vpc.external.ip="${HOST_PUBLIC_IPv4}" --kubeconfig=/root/.kube/config --overwrite
+  echo 'label service kubernetes finish'
 fi
 
 #if [ "$1" == "node" ]; then
@@ -106,5 +107,3 @@ HOST_NAME=`hostname`
 kubectl annotate node "${HOST_NAME}" vpc.external.ip="${HOST_PUBLIC_IPv4}" --kubeconfig=/etc/kubernetes/kubelet.conf --overwrite
 echo 'annotate node vpc.external.ip finish'
 #fi
-
-kubectl label -ndefault service kubernetes vpc.external.ip="123" --kubeconfig=/root/.kube/config --overwrite
