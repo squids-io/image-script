@@ -61,7 +61,7 @@ network:
     ethernets:
         ${NCI_BRIDGE_NAME}:
          addresses:
-             - ${HOST_PUBLIC_IPv4}/24
+             - ${HOST_PUBLIC_IPv4}/32
 EOF
 netplan apply
 
