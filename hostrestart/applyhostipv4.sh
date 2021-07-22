@@ -51,10 +51,10 @@ echo "info: HOST_PUBLIC_IPv4: ""$HOST_PUBLIC_IPv4"
 
 # 仅 k8s node 节点才使用公网 IP 启动 kubelet
 if [ "$2" == "node" ]; then
-# 用主机公网 IP 新建一个网卡
-NCI_BRIDGE_NAME="brs"
-ip link add name ${NCI_BRIDGE_NAME} type bridge
-cat > /etc/netplan/${NCI_BRIDGE_NAME}-config.yaml <<EOF
+  # 用主机公网 IP 新建一个网卡
+  NCI_BRIDGE_NAME="brs"
+  ip link add name ${NCI_BRIDGE_NAME} type bridge
+  cat > /etc/netplan/${NCI_BRIDGE_NAME}-config.yaml <<EOF
 network:
     version: 2
     renderer: networkd
@@ -63,32 +63,40 @@ network:
          addresses:
              - ${HOST_PUBLIC_IPv4}/32
 EOF
-netplan apply
+  netplan apply
 
+  # 把主机公网 IP 配置进 kubelet 启动参数里
+  KUBEADM_CONF="/etc/systemd/system/kubelet.service.d/10-kubeadm.conf"
 
-# 把主机公网 IP 配置进 kubelet 启动参数里
-KUBEADM_CONF="/etc/systemd/system/kubelet.service.d/10-kubeadm.conf"
+  #if [ `grep -c "Environment=\"KUBELET_EXTRA_ARGS" ${KUBEADM_CONF}` -ne '0' ] && [ `grep -c "\-\-node\-ip" ${KUBEADM_CONF}` -ne '0' ]
+  #then
+  #  sed -r 's/(\b[0-9]{1,3}\.){3}[0-9]{1,3}\b'/"${HOST_PUBLIC_IPv4}"/ -i ${KUBEADM_CONF}
+  #else
+  #  sed -i '/\[Service\]/aEnvironment="KUBELET_EXTRA_ARGS=--container-runtime=remote --node-ip='"${HOST_PUBLIC_IPv4}"' --runtime-request-timeout=15m --container-runtime-endpoint=unix:///run/containerd/containerd.sock"' ${KUBEADM_CONF}
+  #fi
 
-#if [ `grep -c "Environment=\"KUBELET_EXTRA_ARGS" ${KUBEADM_CONF}` -ne '0' ] && [ `grep -c "\-\-node\-ip" ${KUBEADM_CONF}` -ne '0' ]
-#then
-#  sed -r 's/(\b[0-9]{1,3}\.){3}[0-9]{1,3}\b'/"${HOST_PUBLIC_IPv4}"/ -i ${KUBEADM_CONF}
-#else
-#  sed -i '/\[Service\]/aEnvironment="KUBELET_EXTRA_ARGS=--container-runtime=remote --node-ip='"${HOST_PUBLIC_IPv4}"' --runtime-request-timeout=15m --container-runtime-endpoint=unix:///run/containerd/containerd.sock"' ${KUBEADM_CONF}
-#fi
+  # delete old KUBELET_EXTRA_ARGS
+  sed -e '/Environment=\"KUBELET_EXTRA_ARGS/d' -i ${KUBEADM_CONF}
+  # insert
+  # todo 确保该处的配置参数跟其他地方的一致
+  sed -i '/\[Service\]/aEnvironment="KUBELET_EXTRA_ARGS=--container-runtime=remote --node-ip='"${HOST_PUBLIC_IPv4}"' --runtime-request-timeout=15m --cgroup-driver=systemd --container-runtime-endpoint=unix:///run/containerd/containerd.sock"' ${KUBEADM_CONF}
 
-# delete old KUBELET_EXTRA_ARGS
-sed -e '/Environment=\"KUBELET_EXTRA_ARGS/d' -i ${KUBEADM_CONF}
-# insert
-# todo 确保该处的配置参数跟其他地方的一致
-sed -i '/\[Service\]/aEnvironment="KUBELET_EXTRA_ARGS=--container-runtime=remote --node-ip='"${HOST_PUBLIC_IPv4}"' --runtime-request-timeout=15m --cgroup-driver=systemd --container-runtime-endpoint=unix:///run/containerd/containerd.sock"' ${KUBEADM_CONF}
+  # 重启 kubelet
+  systemctl daemon-reload
+  systemctl restart kubelet
 
-# 重启 kubelet
-systemctl daemon-reload
-systemctl restart kubelet
-
-echo 'success apply to nic'
+  echo 'success apply to nic'
 fi
 
+echo 'check k8s api-server'
+# shellcheck disable=SC2068
+repeat() { while :; do $@ && return; sleep 1; done }
+repeat kubectl api-versions --kubeconfig=/etc/kubernetes/kubelet.conf > /dev/null 2>&1
+echo 'k8s api-server running'
+
+if [ "$2" == "master" ]; then
+  kubectl label -ndefault service kubernetes vpc.external.ip="${HOST_PUBLIC_IPv4}" --kubeconfig=/root/.kube/config --overwrite
+fi
 
 #if [ "$1" == "node" ]; then
 # 用本机 kubelet 的配置文件，更新 k8s node 的 annotation
@@ -98,3 +106,5 @@ HOST_NAME=`hostname`
 kubectl annotate node "${HOST_NAME}" vpc.external.ip="${HOST_PUBLIC_IPv4}" --kubeconfig=/etc/kubernetes/kubelet.conf --overwrite
 echo 'annotate node vpc.external.ip finish'
 #fi
+
+kubectl label -ndefault service kubernetes vpc.external.ip="123" --kubeconfig=/root/.kube/config --overwrite
