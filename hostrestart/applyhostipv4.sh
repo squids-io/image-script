@@ -97,16 +97,16 @@ echo 'k8s api-server running'
 # shellcheck disable=SC2006
 HOST_NAME=`hostname`
 
-if [ "$2" == "master" ]; then
-  kubectl label -ndefault service kubernetes vpc.external.ip="${HOST_PUBLIC_IPv4}" --kubeconfig=/root/.kube/config --overwrite
-  echo 'label service kubernetes finish'
-  kubectl label node "${HOST_NAME}" vpc.external.ip="${HOST_PUBLIC_IPv4}" --kubeconfig=/root/.kube/config --overwrite
-  echo 'label master node finish'
-fi
-
 #if [ "$1" == "node" ]; then
 # 用本机 kubelet 的配置文件，更新 k8s node 的 annotation
 # 必须在 kubeadm join 后，不然没 kubelet.conf
 kubectl annotate node "${HOST_NAME}" vpc.external.ip="${HOST_PUBLIC_IPv4}" --kubeconfig=/etc/kubernetes/kubelet.conf --overwrite
 echo 'annotate node vpc.external.ip finish'
 #fi
+
+if [ "$2" == "master" ]; then
+  kubectl label -ndefault service kubernetes vpc.external.ip="${HOST_PUBLIC_IPv4}" --kubeconfig=/root/.kube/config --overwrite
+  echo 'label service kubernetes finish'
+  kubectl label node "${HOST_NAME}" vpc.external.ip="${HOST_PUBLIC_IPv4}" --kubeconfig=/root/.kube/config --overwrite
+  echo 'label master node finish'
+fi
