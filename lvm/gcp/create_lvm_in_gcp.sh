@@ -16,7 +16,7 @@ sudo mkdir -p /squids-data
 DEVICES=($(ls /dev/sd[b-z]))
 if [[ ${#DEVICES[*]} -eq 0 ]]
 then
-  DEVICES=($(sudo nvme list |grep 'nvme0n1' |awk '{print $1}'))
+  DEVICES=($(ls /dev/nvme0n[1-9]))
 fi
 if [[ ${#DEVICES[*]} -eq 0 ]]
 then
