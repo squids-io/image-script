@@ -7,6 +7,18 @@
 #                  choose which volumes to use according to the following principles:
 #                  1. if ebs volume exists, only use all ebs volumes
 #                  2. if there is no ebs volume, use local ssd
+#
+# warning：        The disk mounting script will judge according to the disk name,
+#                  and mount disks with standard names (similar to sdb) first.
+#                  There are two types of disks with standard names similar to
+#                  sdb in Google Cloud: persistent disk and local SSD in SCSI mode.
+#                  When both types of disks exist on the instance,
+#                  if you execute this script to mount the disk,
+#                  some data will be written to the local SSD,
+#                  and there is a risk of data loss. Therefore,
+#                  if both types of disks exist on the instance,
+#                  please do not execute this script to mount the disks,
+#                  otherwise you will be responsible for the consequences.
 #* *******************************************************
 
 # mkdir "squids-data"
