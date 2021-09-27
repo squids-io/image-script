@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 
 # apply host public IPv4 after host restart
-# just for aws EC2 now
+# just for aws EC2/aliyun ecs/gcp ge now
 # step:
 # - get host public IPv4
 #   - aws EC2 [https://docs.aws.amazon.com/zh_cn/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html]
 #   - aliyun ECS [https://help.aliyun.com/document_detail/214777.html?spm=a2c4g.11186623.6.743.1cea639eaI7zwz]
+#   - gcp GE
 # - create NIC use host public IPv4
 # - apply host public IPv4 to kubelet start arg --node-ip
 # - use hostname as k8s node name, `kubectl annotate node {node_name} vpc.external.ip={host_public_ip} --overwrite`
@@ -14,12 +15,13 @@
 # 1. cloud provider
 #   - aws
 #   - aliyun
+#   - gcp-ge
 # 2. node type
 #   - master
 #   - node
 
 if [ "$1" == "" ]; then
-    echo "err: arg1 means cloud provider, available 'aws', 'aliyun' now"
+    echo "err: arg1 means cloud provider, available 'aws', 'aliyun', 'gcp-ge' now"
     exit 0
 fi
 
@@ -39,6 +41,9 @@ elif [ "$1" == "aliyun" ]; then
     ALIYUNECS_METADATA_TOKEN=`curl -s --connect-timeout 1 -X PUT "http://100.100.100.200/latest/api/token" -H "X-aliyun-ecs-metadata-token-ttl-seconds: 21600"`
     # shellcheck disable=SC2006
     HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 -H "X-aliyun-ecs-metadata-token: $ALIYUNECS_METADATA_TOKEN"  http://100.100.100.200/latest/meta-data/eipv4`
+elif [ "$1" == "gcp-ge" ]; then
+    # shellcheck disable=SC2006
+    HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip`
 fi
 
 if [ "$HOST_PUBLIC_IPv4" == "" ]; then
