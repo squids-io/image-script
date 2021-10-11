@@ -69,6 +69,11 @@ network:
              - ${HOST_PUBLIC_IPv4}/32
 EOF
   netplan apply
+  if [ $? -ne 0 ]; then
+    echo "netplan apply failed"
+  else
+    echo "netplan apply success"
+  fi
 
   # 把主机公网 IP 配置进 kubelet 启动参数里
   KUBEADM_CONF="/etc/systemd/system/kubelet.service.d/10-kubeadm.conf"
