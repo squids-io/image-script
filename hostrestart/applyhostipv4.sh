@@ -6,7 +6,8 @@
 # - get host public IPv4
 #   - aws EC2 [https://docs.aws.amazon.com/zh_cn/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html]
 #   - aliyun ECS [https://help.aliyun.com/document_detail/214777.html?spm=a2c4g.11186623.6.743.1cea639eaI7zwz]
-#   - gcp GE
+#   - gcp GE [https://stackoverflow.com/questions/23362887/can-you-get-external-ip-address-from-within-a-google-compute-vm-instance]
+#   - azure-vm [https://docs.microsoft.com/zh-cn/azure/virtual-machines/linux/instance-metadata-service?tabs=linux#instance-metadata]
 # - create NIC use host public IPv4
 # - apply host public IPv4 to kubelet start arg --node-ip
 # - use hostname as k8s node name, `kubectl annotate node {node_name} vpc.external.ip={host_public_ip} --overwrite`
@@ -16,6 +17,7 @@
 #   - aws
 #   - aliyun
 #   - gcp-ge
+#   - azure-vm
 # 2. node type
 #   - master
 #   - node
@@ -44,6 +46,12 @@ elif [ "$1" == "aliyun" ]; then
 elif [ "$1" == "gcp-ge" ]; then
     # shellcheck disable=SC2006
     HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip`
+elif [ "$1" == "azure-vm" ]; then
+    # shellcheck disable=SC2034
+    # shellcheck disable=SC2006
+    # shellcheck disable=SC1132
+    # HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 -H "Metadata:true" --noproxy "*" http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2017-08-01&format=text`
+    HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 ifconfig.me`
 fi
 
 if [ "$HOST_PUBLIC_IPv4" == "" ]; then
