@@ -32,25 +32,34 @@ if [ "$2" == "" ]; then
     exit 0
 fi
 
+# shellcheck disable=SC2068
+repeat() { while :; do $@ && return; sleep 1; done }
+
 # 获取主机 IPv4
 if [ "$1" == "aws" ]; then
     # shellcheck disable=SC2006
     AWSEC2_IMDSV2_TOKEN=`curl -s --connect-timeout 1 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"`
+    # shellcheck disable=SC2006
+    repeat "`curl -s --connect-timeout 1 -H "X-aws-ec2-metadata-token: $AWSEC2_IMDSV2_TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4`" > /dev/null 2>&1
     # shellcheck disable=SC2006
     HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 -H "X-aws-ec2-metadata-token: $AWSEC2_IMDSV2_TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4`
 elif [ "$1" == "aliyun" ]; then
     # shellcheck disable=SC2006
     ALIYUNECS_METADATA_TOKEN=`curl -s --connect-timeout 1 -X PUT "http://100.100.100.200/latest/api/token" -H "X-aliyun-ecs-metadata-token-ttl-seconds: 21600"`
     # shellcheck disable=SC2006
-    HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 -H "X-aliyun-ecs-metadata-token: $ALIYUNECS_METADATA_TOKEN"  http://100.100.100.200/latest/meta-data/eipv4`
+    repeat "`curl -s --connect-timeout 1 -H "X-aliyun-ecs-metadata-token: $ALIYUNECS_METADATA_TOKEN" http://100.100.100.200/latest/meta-data/eipv4`" > /dev/null 2>&1
+    # shellcheck disable=SC2006
+    HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 -H "X-aliyun-ecs-metadata-token: $ALIYUNECS_METADATA_TOKEN" http://100.100.100.200/latest/meta-data/eipv4`
 elif [ "$1" == "gcp-ge" ]; then
+    # shellcheck disable=SC2006
+    repeat "`curl -s --connect-timeout 1 -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip`" > /dev/null 2>&1
     # shellcheck disable=SC2006
     HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip`
 elif [ "$1" == "azure-vm" ]; then
-    # shellcheck disable=SC2034
-    # shellcheck disable=SC2006
-    # shellcheck disable=SC1132
     # HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 -H "Metadata:true" --noproxy "*" http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2017-08-01&format=text`
+    # shellcheck disable=SC2006
+    repeat "`curl -s --connect-timeout 1 ifconfig.me`" > /dev/null 2>&1
+    # shellcheck disable=SC2006
     HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 ifconfig.me`
 fi
 
@@ -102,8 +111,6 @@ EOF
 fi
 
 echo 'check k8s api-server'
-# shellcheck disable=SC2068
-repeat() { while :; do $@ && return; sleep 1; done }
 repeat kubectl api-versions --kubeconfig=/etc/kubernetes/kubelet.conf > /dev/null 2>&1
 echo 'k8s api-server running'
 
