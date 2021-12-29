@@ -1,0 +1,3 @@
+#!/bin/sh
+
+/etc/squids/create_lvm_in_azure.sh
