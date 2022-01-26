@@ -1,0 +1,13 @@
+[Unit]
+Description=host: Apply host public ipv4 to nic for kubelet and k8s node
+Wants=network-online.target kubelet.service
+After=network-online.target kubelet.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/etc/squids/applyhostipv4.sh huaweicloud-ecs master
+ExecStop=echo 'stop'
+
+[Install]
+WantedBy=multi-user.target

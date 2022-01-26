@@ -8,6 +8,8 @@
 #   - aliyun ECS [https://help.aliyun.com/document_detail/214777.html?spm=a2c4g.11186623.6.743.1cea639eaI7zwz]
 #   - gcp GE [https://stackoverflow.com/questions/23362887/can-you-get-external-ip-address-from-within-a-google-compute-vm-instance]
 #   - azure-vm [https://docs.microsoft.com/zh-cn/azure/virtual-machines/linux/instance-metadata-service?tabs=linux#instance-metadata]
+#   - huaweicloud-ecs [https://support.huaweicloud.com/usermanual-ecs/ecs_03_0166.html#section13]
+#   - qcloud-cvm [https://cloud.tencent.com/document/product/213/4934]
 # - create NIC use host public IPv4
 # - apply host public IPv4 to kubelet start arg --node-ip
 # - use hostname as k8s node name, `kubectl annotate node {node_name} vpc.external.ip={host_public_ip} --overwrite`
@@ -18,6 +20,8 @@
 #   - aliyun
 #   - gcp-ge
 #   - azure-vm
+#   - huaweicloud-ecs
+#   - qcloud-cvm
 # 2. node type
 #   - master
 #   - node
@@ -61,6 +65,12 @@ elif [ "$1" == "azure-vm" ]; then
     repeat curl -s --connect-timeout 1 ifconfig.me > /dev/null 2>&1
     # shellcheck disable=SC2006
     HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 ifconfig.me`
+elif [ "$1" == "huaweicloud-ecs" ]; then
+    repeat curl -s --connect-timeout 1 http://169.254.169.254/latest/meta-data/public-ipv4 > /dev/null 2>&1
+    HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 http://169.254.169.254/latest/meta-data/public-ipv4`
+elif [ "$1" == "qcloud-cvm" ]; then
+    repeat curl -s --connect-timeout 1 http://metadata.tencentyun.com/latest/meta-data/public-ipv4 > /dev/null 2>&1
+    HOST_PUBLIC_IPv4=`curl -s --connect-timeout 1 http://metadata.tencentyun.com/latest/meta-data/public-ipv4`
 fi
 
 if [ "$HOST_PUBLIC_IPv4" == "" ]; then
