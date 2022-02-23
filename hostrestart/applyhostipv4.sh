@@ -100,11 +100,11 @@ EOF
   # 把主机公网 IP 配置进 kubelet 启动参数里
   KUBEADM_CONF="/etc/systemd/system/kubelet.service.d/10-kubeadm.conf"
   # 如果是 centos, kubeadm conf 默认位置不一样
-  CENTOS_ID="CentOS"
-  OS_RELEASE=`awk -F= '/^NAME/{print $2}' /etc/os-release`
-  if [ [ $OS_RELEASE == *$CENTOS_ID* ] ]; then
-      KUBEADM_CONF="/usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf"
-  fi
+#  CENTOS_ID="CentOS"
+#  OS_RELEASE=`awk -F= '/^NAME/{print $2}' /etc/os-release`
+#  if [ [ $OS_RELEASE == *$CENTOS_ID* ] ]; then
+#      KUBEADM_CONF="/usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf"
+#  fi
 
   #if [ `grep -c "Environment=\"KUBELET_EXTRA_ARGS" ${KUBEADM_CONF}` -ne '0' ] && [ `grep -c "\-\-node\-ip" ${KUBEADM_CONF}` -ne '0' ]
   #then
