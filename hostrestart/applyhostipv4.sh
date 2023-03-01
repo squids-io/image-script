@@ -87,24 +87,36 @@ fi
 # shellcheck disable=SC2027
 echo "info: HOST_PUBLIC_IPv4: ""$HOST_PUBLIC_IPv4"
 
-# 仅 k8s node 节点才使用公网 IP 启动 kubelet
+# 仅 k8s node 节点才使用公网 IP 启动 kubelet，用主机公网 IP 新建一个网卡
 if [ "$2" == "node" ]; then
-  # 用主机公网 IP 新建一个网卡
-  NCI_BRIDGE_NAME="brs"
-  ip link add name ${NCI_BRIDGE_NAME} type bridge
-  cat > /etc/netplan/${NCI_BRIDGE_NAME}-config.yaml <<EOF
+  NIC_BRIDGE_NAME="brs"
+  KUBEADM_CONF=""
+  if [ -f "/etc/lsb-release" ]; then
+    ip link add name ${NIC_BRIDGE_NAME} type bridge
+    cat > /etc/netplan/${NIC_BRIDGE_NAME}-config.yaml <<EOF
 network:
     version: 2
     renderer: networkd
     ethernets:
-        ${NCI_BRIDGE_NAME}:
+        ${NIC_BRIDGE_NAME}:
          addresses:
              - ${HOST_PUBLIC_IPv4}/32
 EOF
-  netplan apply
+    netplan apply
+    KUBEADM_CONF="/etc/systemd/system/kubelet.service.d/10-kubeadm.conf"
+  else
+    cat > /etc/sysconfig/network-scripts/ifcfg-${NIC_BRIDGE_NAME} <<EOF
+DEVICE=${NIC_BRIDGE_NAME}
+ONBOOT=yes
+TYPE=Bridge
+BOOTPROTO=static
+IPADDR=${HOST_PUBLIC_IPv4}
+NETMASK=255.255.255.0
+EOF
+    service network restart
+    KUBEADM_CONF="/usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf"
+  fi
 
-  # 把主机公网 IP 配置进 kubelet 启动参数里
-  KUBEADM_CONF="/etc/systemd/system/kubelet.service.d/10-kubeadm.conf"
   # 如果是 centos, kubeadm conf 默认位置不一样
 #  CENTOS_ID="CentOS"
 #  OS_RELEASE=`awk -F= '/^NAME/{print $2}' /etc/os-release`
