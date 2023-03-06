@@ -77,6 +77,8 @@ elif [ "$1" == "huaweicloud-ecs" ]; then
     loop_exe "curl -s --connect-timeout 1 http://169.254.169.254/latest/meta-data/public-ipv4"
 elif [ "$1" == "qcloud-cvm" ]; then
     loop_exe "curl -s --connect-timeout 1 http://metadata.tencentyun.com/latest/meta-data/public-ipv4"
+elif [ "$1" == "vmware" ]; then
+    loop_exe "/etc/squids/getip"
 fi
 
 if [ "$HOST_PUBLIC_IPv4" == "" ]; then
@@ -90,7 +92,6 @@ echo "info: HOST_PUBLIC_IPv4: ""$HOST_PUBLIC_IPv4"
 # 仅 k8s node 节点才使用公网 IP 启动 kubelet，用主机公网 IP 新建一个网卡
 if [ "$2" == "node" ]; then
   NIC_BRIDGE_NAME="brs"
-  KUBEADM_CONF=""
   if [ -f "/etc/lsb-release" ]; then
     ip link add name ${NIC_BRIDGE_NAME} type bridge
     cat > /etc/netplan/${NIC_BRIDGE_NAME}-config.yaml <<EOF
@@ -103,7 +104,13 @@ network:
              - ${HOST_PUBLIC_IPv4}/32
 EOF
     netplan apply
-    KUBEADM_CONF="/etc/systemd/system/kubelet.service.d/10-kubeadm.conf"
+
+    KUBELET_CONF="/etc/systemd/system/kubelet.service.d/10-kubeadm.conf"
+    # delete old KUBELET_EXTRA_ARGS
+    sed -e '/Environment=\"KUBELET_EXTRA_ARGS/d' -i ${KUBELET_CONF}
+    # insert
+    # todo 确保该处的配置参数跟其他地方的一致
+    sed -i '/\[Service\]/aEnvironment="KUBELET_EXTRA_ARGS=--container-runtime=remote --node-ip='"${HOST_PUBLIC_IPv4}"' --runtime-request-timeout=15m --cgroup-driver=systemd --container-runtime-endpoint=unix:///run/containerd/containerd.sock"' ${KUBELET_CONF}
   else
     cat > /etc/sysconfig/network-scripts/ifcfg-${NIC_BRIDGE_NAME} <<EOF
 DEVICE=${NIC_BRIDGE_NAME}
@@ -114,7 +121,13 @@ IPADDR=${HOST_PUBLIC_IPv4}
 NETMASK=255.255.255.0
 EOF
     service network restart
-    KUBEADM_CONF="/usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf"
+
+    KUBELET_CONF=`cat /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf | grep EnvironmentFile | grep -v kubeadm | awk -F '=-' '{print $2}'`
+    # delete old KUBELET_EXTRA_ARGS
+    sed -e '/KUBELET_EXTRA_ARGS=/d' -i ${KUBELET_CONF}
+    # insert
+    # todo 确保该处的配置参数跟其他地方的一致
+    test -s /etc/sysconfig/kubelet && sed -i '$a KUBELET_EXTRA_ARGS=--container-runtime=remote --node-ip='"${HOST_PUBLIC_IPv4}"' --runtime-request-timeout=15m --cgroup-driver=systemd --container-runtime-endpoint=unix:///run/containerd/containerd.sock' /etc/sysconfig/kubelet || echo 'KUBELET_EXTRA_ARGS=--container-runtime=remote --node-ip='"${HOST_PUBLIC_IPv4}"' --runtime-request-timeout=15m --cgroup-driver=systemd --container-runtime-endpoint=unix:///run/containerd/containerd.sock' >> /etc/sysconfig/kubelet
   fi
 
   # 如果是 centos, kubeadm conf 默认位置不一样
@@ -130,12 +143,6 @@ EOF
   #else
   #  sed -i '/\[Service\]/aEnvironment="KUBELET_EXTRA_ARGS=--container-runtime=remote --node-ip='"${HOST_PUBLIC_IPv4}"' --runtime-request-timeout=15m --container-runtime-endpoint=unix:///run/containerd/containerd.sock"' ${KUBEADM_CONF}
   #fi
-
-  # delete old KUBELET_EXTRA_ARGS
-  sed -e '/Environment=\"KUBELET_EXTRA_ARGS/d' -i ${KUBEADM_CONF}
-  # insert
-  # todo 确保该处的配置参数跟其他地方的一致
-  sed -i '/\[Service\]/aEnvironment="KUBELET_EXTRA_ARGS=--container-runtime=remote --node-ip='"${HOST_PUBLIC_IPv4}"' --runtime-request-timeout=15m --cgroup-driver=systemd --container-runtime-endpoint=unix:///run/containerd/containerd.sock"' ${KUBEADM_CONF}
 
   # 重启 kubelet
   systemctl daemon-reload
