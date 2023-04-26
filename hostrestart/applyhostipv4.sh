@@ -122,7 +122,7 @@ NETMASK=255.255.255.0
 EOF
     service network restart
     systemctl restart NetworkManager
-    ifdown brs && ifup brs
+    ifdown ${NIC_BRIDGE_NAME} && ifup ${NIC_BRIDGE_NAME}
 
     KUBELET_CONF=`cat /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf | grep EnvironmentFile | grep -v kubeadm | awk -F '=-' '{print $2}'`
     # delete old KUBELET_EXTRA_ARGS
