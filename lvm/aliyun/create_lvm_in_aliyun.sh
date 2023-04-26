@@ -37,7 +37,7 @@ done
 if [[ ${#NEWS[*]} -eq 0 ]]
 then
   echo 'no new devices found'
-  exit 0
+#  exit 0
 fi
 echo "new devices: ${NEWS[*]}"
 
@@ -51,7 +51,17 @@ then
   sudo sed -i '$a /dev/squids-group/squids-data   /squids-data         xfs   defaults,defaults         0 0' /etc/fstab
   sudo mount -a
 else
-  sudo vgextend squids-group ${NEWS[*]}
+  # mount if necessary
+  MOUNTED=$(cat /etc/fstab|grep squids-data|awk '{print $1}')
+  if [ ! $MOUNTED ]; then
+    sudo sed -i '$a /dev/squids-group/squids-data   /squids-data         xfs   defaults,defaults         0 0' /etc/fstab
+    sudo mount -a
+    echo "mount success"
+  fi
+
+#  sudo vgextend squids-group ${NEWS[*]}
+  sudo pvresize ${DEVICES[*]}
+  sudo vgextend squids-group ${DEVICES[*]}
   sudo lvresize -l +100%FREE -y /dev/squids-group/squids-data
   sudo xfs_growfs /dev/squids-group/squids-data
 fi
