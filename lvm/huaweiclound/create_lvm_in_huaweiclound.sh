@@ -1,23 +1,19 @@
 #!/bin/bash
 #**********************************************************
-#* Author        : dongyi.zhang
-#* Last modified : 2021-05-14
-#* Filename      : create_lvm_in_aws.sh
-#* Description   : create the lvm volume in Amazon ec2 and mount it to the /squids-data directory.
+#* Author        : huan.yan
+#* Last modified : 2021-12-28
+#* Filename      : create_lvm_in_aliyun.sh
+#* Description   : create the lvm volume in aliyun ecs and mount it to the /squids-data directory.
 #                  choose which volumes to use according to the following principles:
-#                  1. if ebs volume exists, only use all ebs volumes
-#                  2. if there is no ebs volume, use local ssd
+#                  1. if cloud ssd exists, only use all cloud ssd
+#                  2. if there is no cloud ssd , use local ssd
 #* *******************************************************
 
 # mkdir "squids-data"
 sudo mkdir -p /squids-data
 
 # find all devices
-DEVICES=($(sudo nvme list |grep -v 'nvme0n1' |grep 'Amazon Elastic Block Store' |awk '{print $1}'))
-if [[ ${#DEVICES[*]} -eq 0 ]]
-then
-  DEVICES=($(sudo nvme list |grep 'Amazon EC2 NVMe Instance Storage' |awk '{print $1}'))
-fi
+DEVICES=($(ls /dev/vd[b-z]))
 if [[ ${#DEVICES[*]} -eq 0 ]]
 then
   echo 'no block storage device found'
@@ -55,17 +51,11 @@ then
   sudo sed -i '$a /dev/squids-group/squids-data   /squids-data         xfs   defaults,defaults         0 0' /etc/fstab
   sudo mount -a
 else
-  # mount if necessary
-  MOUNTED=$(cat /etc/fstab|grep squids-data|awk '{print $1}')
-  if [ ! $MOUNTED ]; then
-    sudo sed -i '$a /dev/squids-group/squids-data   /squids-data         xfs   defaults,defaults         0 0' /etc/fstab
-    sudo mount -a
-    echo "mount success"
-  fi
-
   sudo vgextend squids-group ${NEWS[*]}
   sudo lvresize -l +100%FREE -y /dev/squids-group/squids-data
   sudo xfs_growfs /dev/squids-group/squids-data
+  sudo sed -i '$a /dev/squids-group/squids-data   /squids-data         xfs   defaults,defaults         0 0' /etc/fstab
+  sudo mount -a
 fi
 
 echo 'successful'

@@ -1,23 +1,19 @@
 #!/bin/bash
 #**********************************************************
-#* Author        : dongyi.zhang
-#* Last modified : 2021-05-14
-#* Filename      : create_lvm_in_aws.sh
-#* Description   : create the lvm volume in Amazon ec2 and mount it to the /squids-data directory.
+#* Author        : huan.yan
+#* Last modified : 2021-12-28
+#* Filename      : create_lvm_in_aliyun.sh
+#* Description   : create the lvm volume in aliyun ecs and mount it to the /squids-data directory.
 #                  choose which volumes to use according to the following principles:
-#                  1. if ebs volume exists, only use all ebs volumes
-#                  2. if there is no ebs volume, use local ssd
+#                  1. if cloud ssd exists, only use all cloud ssd
+#                  2. if there is no cloud ssd , use local ssd
 #* *******************************************************
 
 # mkdir "squids-data"
 sudo mkdir -p /squids-data
 
 # find all devices
-DEVICES=($(sudo nvme list |grep -v 'nvme0n1' |grep 'Amazon Elastic Block Store' |awk '{print $1}'))
-if [[ ${#DEVICES[*]} -eq 0 ]]
-then
-  DEVICES=($(sudo nvme list |grep 'Amazon EC2 NVMe Instance Storage' |awk '{print $1}'))
-fi
+DEVICES=($(ls /dev/vd[b-z]))
 if [[ ${#DEVICES[*]} -eq 0 ]]
 then
   echo 'no block storage device found'
@@ -41,7 +37,7 @@ done
 if [[ ${#NEWS[*]} -eq 0 ]]
 then
   echo 'no new devices found'
-  exit 0
+  #exit 0
 fi
 echo "new devices: ${NEWS[*]}"
 
@@ -49,6 +45,7 @@ echo "new devices: ${NEWS[*]}"
 EXIST_VG=$(sudo vgs | grep 'squids-group' | awk '{print $1}')
 if [ "$EXIST_VG"x != "squids-group"x ]
 then
+  echo "create new devices: ${NEWS[*]}"
   sudo vgcreate squids-group ${NEWS[*]}
   sudo lvcreate -l 100%FREE -y -n squids-data squids-group
   sudo mkfs.xfs /dev/squids-group/squids-data
@@ -63,7 +60,10 @@ else
     echo "mount success"
   fi
 
-  sudo vgextend squids-group ${NEWS[*]}
+  echo "extend devices: ${DEVICES[*]}"
+  #sudo vgextend squids-group ${NEWS[*]}
+  sudo pvresize ${DEVICES[*]}
+  sudo vgextend squids-group ${DEVICES[*]}
   sudo lvresize -l +100%FREE -y /dev/squids-group/squids-data
   sudo xfs_growfs /dev/squids-group/squids-data
 fi
